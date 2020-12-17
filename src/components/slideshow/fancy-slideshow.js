@@ -2,6 +2,13 @@ import Vue from "vue";
 import {capitalize} from "@/utils/string";
 import {sleep} from "@/utils/async";
 
+const transition = {
+    up: 'fs-transition--slide-up',
+    down: 'fs-transition--slide-down',
+    left: 'fs-transition--slide-left',
+    right: 'fs-transition--slide-right',
+}
+
 export default Vue.extend({
     name: "FancySlideshow",
     props: {
@@ -29,7 +36,9 @@ export default Vue.extend({
                 down: { highlight: false, active: false, disabled: true },
                 left: { highlight: false, active: false, disabled: false },
                 right: { highlight: false, active: false, disabled: false },
-            }
+            },
+
+            transitionName: undefined,
         }
     },
     computed: {
@@ -57,8 +66,14 @@ export default Vue.extend({
             else if (currentNode.componentOptions.tag === 'fancy-slideshow-chapter') {
                 return currentNode.componentOptions.children
                     ?.filter(childNode => childNode.componentOptions.tag === 'fancy-slideshow-slide')
-                    ?.length
+                    ?.length + (currentNode.componentOptions.propsData.noTitleSlide ? 0 : 1)
             }
+        },
+        nextPageTransition () {
+            return 'fs-transition--slide-right'
+        },
+        prevPageTransition () {
+            return 'fs-transition--slide-left'
         }
     },
     watch: {
@@ -106,6 +121,9 @@ export default Vue.extend({
                 [...new Array(this.validSlideNodes.length)].map(_ => 0)
             )
         },
+        __updateTransitionName (dir) {
+            this.transitionName = transition[dir]
+        },
         /**
          *
          * @param {'up'|'right'|'down'|'left'} dir
@@ -123,6 +141,8 @@ export default Vue.extend({
          * @param {MouseEvent} evt
          */
         controlBtnClickHandler (dir, evt) {
+            this.__updateTransitionName(dir)
+
             switch (dir) {
                 case "up":
                     return this.prevSection()
@@ -156,7 +176,7 @@ export default Vue.extend({
         },
         __moveSection(count) {
             const newSection = this.section[this.page] + count
-            this.section[this.page] = Math.min(Math.max(newSection, 0), this.currentChapterLength)
+            this.section[this.page] = Math.min(Math.max(newSection, 0), this.currentChapterLength - 1)
             this.__updateControlBtnStatus(this.page, newSection)
         },
 
@@ -177,7 +197,7 @@ export default Vue.extend({
             else if (currentNode.componentOptions.tag === 'fancy-slideshow-chapter') {
                 return currentNode.componentOptions.children
                     ?.filter(childNode => childNode.componentOptions.tag === 'fancy-slideshow-slide')
-                    ?.length
+                    ?.length + (currentNode.componentOptions.propsData.noTitleSlide ? 0 : 1)
             }
         },
 
@@ -203,7 +223,7 @@ export default Vue.extend({
                 this.controlBtnStatus.up.disabled = false
             }
 
-            if (section < this.__calcChapterLength(page)) {
+            if (section < this.__calcChapterLength(page) - 1) {
                 this.controlBtnStatus.down.disabled = false
             }
         },
@@ -249,6 +269,8 @@ export default Vue.extend({
         __renderCurrentPage(h) {
             const currentPage = this.validSlideNodes[this.page]
 
+            currentPage.key = `fancy-slideshow--${this.page}`
+
             return h('div', {
                 staticClass: 'fancy-slideshow__page-container'
             }, [
@@ -257,6 +279,11 @@ export default Vue.extend({
                     : this.__renderChapter(h, currentPage)
             ])
         },
+        /**
+         * 
+         * @param {CreateElement} h
+         * @return {VNode} 
+         */
         __renderControl (h) {
             const controlPanel = {
                 up: { icon: 'angle-up', style: { transform: 'translate(72px, 0)' } },
@@ -324,7 +351,13 @@ export default Vue.extend({
         return h('div', {
             staticClass: this.classes,
         }, [
-            this.__renderCurrentPage(h),
+            h('transition', {
+                props: {
+                    name: this.transitionName,
+                }
+            }, [
+                this.__renderCurrentPage(h),
+            ]),
             this.__renderControl(h)
         ])
     }
